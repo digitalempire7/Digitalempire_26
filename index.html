@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Free Weather API – Digital Empire</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🌤️ Free Weather API</h1>
+    <p class="subtitle">Powered by <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a> — no API key required</p>
+
+    <div class="search-box">
+      <input
+        type="text"
+        id="city-input"
+        placeholder="Enter city name (e.g. London)"
+        aria-label="City name"
+      />
+      <button id="search-btn">Get Weather</button>
+    </div>
+
+    <div id="error-msg" class="error" hidden></div>
+
+    <div id="result-card" class="card" hidden>
+      <h2 id="city-name"></h2>
+      <div class="weather-grid">
+        <div class="weather-item">
+          <span class="label">Temperature</span>
+          <span id="temperature" class="value"></span>
+        </div>
+        <div class="weather-item">
+          <span class="label">Feels Like</span>
+          <span id="feels-like" class="value"></span>
+        </div>
+        <div class="weather-item">
+          <span class="label">Wind Speed</span>
+          <span id="wind-speed" class="value"></span>
+        </div>
+        <div class="weather-item">
+          <span class="label">Humidity</span>
+          <span id="humidity" class="value"></span>
+        </div>
+        <div class="weather-item">
+          <span class="label">Condition</span>
+          <span id="condition" class="value"></span>
+        </div>
+        <div class="weather-item">
+          <span class="label">UV Index</span>
+          <span id="uv-index" class="value"></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">API: <code>https://api.open-meteo.com/v1/forecast</code></p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
