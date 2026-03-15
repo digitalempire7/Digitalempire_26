@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Web Builder - GenzTool.dev</title>
+  <!-- NOTE: Add integrity="sha384-..." SRI hash in production to mitigate CDN supply-chain risk -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;600;700&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    .builder-page { overflow: hidden; }
+
+    .code-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .code-editor {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+    }
+
+    .builder-main {
+      grid-template-rows: 1fr 1fr;
+    }
+
+    .chat-messages {
+      min-height: 0;
+    }
+
+    /* Tab note shown for CSS/JS tabs */
+    .tab-note {
+      display: none;
+      padding: 12px 16px;
+      background: rgba(124,58,237,0.08);
+      border-bottom: 1px solid rgba(124,58,237,0.2);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .tab-note.visible { display: block; }
+
+    /* Spinner animation on generate button */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinning::after {
+      content: '';
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body class="builder-page">
+
+  <!-- ── Header Toolbar ─────────────────────────────────────── -->
+  <header class="editor-toolbar">
+    <a href="index.html" class="back-btn">← Back</a>
+    <span class="editor-title">🚀 AI Web Builder</span>
+    <div class="toolbar-actions">
+      <button onclick="downloadAsZip()" class="btn-secondary">📦 Download ZIP</button>
+      <button onclick="copyCode()" class="btn-secondary">📋 Copy Code</button>
+      <button onclick="saveProject()" class="btn-primary">💾 Save</button>
+    </div>
+  </header>
+
+  <!-- ── Builder Layout ─────────────────────────────────────── -->
+  <div class="builder-layout">
+
+    <!-- ── Left Sidebar ───────────────────────────────────── -->
+    <aside class="builder-sidebar">
+
+      <!-- Project Types -->
+      <div class="project-types">
+        <h3>Project Type</h3>
+        <div class="project-types-grid" id="projectTypesGrid">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Chat Section -->
+      <div class="chat-section">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+          <textarea
+            id="userInput"
+            placeholder='Describe your Portfolio... e.g. "Make it dark themed with animations"'
+            rows="3"
+          ></textarea>
+          <button class="btn-primary" id="generateBtn" onclick="generateCode()">
+            🚀 Generate
+          </button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── Right Main ──────────────────────────────────────── -->
+    <div class="builder-main">
+
+      <!-- Code Panel -->
+      <div class="code-panel">
+        <div class="code-tabs">
+          <button class="code-tab active" data-codetab="html" onclick="switchCodeTab('html')">HTML</button>
+          <button class="code-tab" data-codetab="css"  onclick="switchCodeTab('css')">CSS</button>
+          <button class="code-tab" data-codetab="js"   onclick="switchCodeTab('js')">JS</button>
+          <button class="code-tab" data-codetab="preview" onclick="switchCodeTab('preview')">👁 Preview Only</button>
+        </div>
+        <div class="code-content" id="codeContent">
+          <div class="tab-note" id="tabNote"></div>
+          <textarea
+            id="htmlEditor"
+            class="code-editor"
+            spellcheck="false"
+            placeholder="Your generated HTML code will appear here. Click Generate to start!"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Preview Panel -->
+      <div class="preview-panel" id="previewPanel">
+        <div class="preview-header">
+          <span>🖥 Live Preview</span>
+          <button onclick="refreshPreview()">🔄 Refresh</button>
+          <button onclick="openInNewTab()">↗ Open in New Tab</button>
+        </div>
+        <iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    /* ── State ──────────────────────────────────────────────── */
+    let selectedProjectType = 'Portfolio';
+    let generatedCode = '';
+    let isGenerating = false;
+
+    const PROJECT_TYPES = [
+      'Portfolio', 'Resume', 'E-commerce Site', 'Blog Site', 'Game',
+      'Mobile App', 'Admin Dashboard', 'Chat App', 'Weather App',
+      'SaaS Landing Page', 'Restaurant Site', 'Event Page', 'NFT Gallery',
+      'API Docs', 'Dev Tools'
+    ];
+
+    /* ── Render Project Type Buttons ────────────────────────── */
+    function renderProjectTypes() {
+      const grid = document.getElementById('projectTypesGrid');
+      grid.innerHTML = PROJECT_TYPES.map(type => `
+        <button
+          class="project-type-btn${type === selectedProjectType ? ' active' : ''}"
+          data-type="${type}"
+          onclick="selectProjectType('${type}')"
+        >${type}</button>
+      `).join('');
+    }
+
+    /* ── Select Project Type ────────────────────────────────── */
+    function selectProjectType(type) {
+      selectedProjectType = type;
+      document.querySelectorAll('.project-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+      });
+      document.getElementById('userInput').placeholder =
+        `Describe your ${type}... e.g. "Make it dark themed with animations"`;
+    }
+
+    /* ── Chat Helpers ───────────────────────────────────────── */
+    function addWelcomeMessage() {
+      addChatMessage('assistant',
+        `👋 Welcome to AI Web Builder! Select a project type above, then describe what you want to build. I'll generate complete, beautiful HTML+CSS+JS code for you!\n\nTry: "Create a dark portfolio with neon effects" or just click Generate to use the default template.`
+      );
+    }
+
+    function addChatMessage(role, content) {
+      const messagesDiv = document.getElementById('chatMessages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `chat-message ${role}`;
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+      bubble.textContent = content;
+      msgDiv.appendChild(bubble);
+      messagesDiv.appendChild(msgDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    /* ── Generate Code ──────────────────────────────────────── */
+    async function generateCode() {
+      if (isGenerating) return;
+
+      const userMessage = document.getElementById('userInput').value.trim() ||
+        `Create a beautiful ${selectedProjectType}`;
+
+      addChatMessage('user', userMessage);
+      document.getElementById('userInput').value = '';
+
+      isGenerating = true;
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Generating...';
+      btn.classList.add('spinning');
+
+      addChatMessage('assistant', `🤖 Generating your ${selectedProjectType}...`);
+
+      const systemPrompt =
+        `You are an expert web developer. Generate a complete, modern, beautiful, fully self-contained single HTML file for a ${selectedProjectType}. User requirements: ${userMessage}.\n\nRequirements:\n- Include ALL CSS embedded in <style> tags\n- Include ALL JavaScript in <script> tags\n- Use modern design with gradients, animations, smooth transitions\n- Make it visually stunning and production-ready\n- Ensure it works without any external dependencies EXCEPT Google Fonts if needed\n- Use a color palette appropriate for ${selectedProjectType}\n- Add hover effects, micro-animations, and modern UI patterns\n- Make it fully responsive\n\nReturn ONLY the complete HTML code starting with <!DOCTYPE html> and nothing else. No explanations, no markdown code blocks.`;
+
+      try {
+        const url = `https://text.pollinations.ai/${encodeURIComponent(systemPrompt)}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        let code = await response.text();
+
+        code = extractHTML(code);
+
+        if (code && code.toLowerCase().includes('<!doctype html')) {
+          generatedCode = code;
+          displayCode(code);
+          updatePreview(code);
+          const msgs = document.querySelectorAll('.chat-message.assistant');
+          const last = msgs[msgs.length - 1];
+          if (last) {
+            last.querySelector('.chat-bubble').textContent =
+              `✅ Generated your ${selectedProjectType}! Check the preview below. Edit the code directly in the editor above.`;
+          }
+        } else {
+          throw new Error('Invalid HTML response');
+        }
+      } catch (e) {
+        const fallback = getFallbackTemplate(selectedProjectType);
+        generatedCode = fallback;
+        displayCode(fallback);
+        updatePreview(fallback);
+        const msgs = document.querySelectorAll('.chat-message.assistant');
+        const last = msgs[msgs.length - 1];
+        if (last) {
+          last.querySelector('.chat-bubble').textContent =
+            `📋 Here's a starter template for ${selectedProjectType}. The AI is busy — you can customize the code directly!`;
+        }
+      } finally {
+        isGenerating = false;
+        btn.disabled = false;
+        btn.textContent = '🚀 Generate';
+        btn.classList.remove('spinning');
+      }
+    }
+
+    /* ── Extract HTML from API response ────────────────────── */
+    function extractHTML(text) {
+      const idx = text.toLowerCase().indexOf('<!doctype html');
+      if (idx !== -1) return text.slice(idx);
+      const match = text.match(/```(?:html)?\n([\s\S]*?)```/i);
+      if (match) return match[1].trim();
+      return text;
+    }
+
+    /* ── Display / Preview ──────────────────────────────────── */
+    function displayCode(code) {
+      document.getElementById('htmlEditor').value = code;
+    }
+
+    function updatePreview(code) {
+      document.getElementById('previewFrame').srcdoc = code;
+    }
+
+    function refreshPreview() {
+      updatePreview(document.getElementById('htmlEditor').value);
+    }
+
+    function openInNewTab() {
+      const code = document.getElementById('htmlEditor').value;
+      const blob = new Blob([code], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
+    /* ── Code Tabs ──────────────────────────────────────────── */
+    function switchCodeTab(tab) {
+      document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`[data-codetab="${tab}"]`).classList.add('active');
+
+      const codeContent = document.getElementById('codeContent');
+      const editor = document.getElementById('htmlEditor');
+      const tabNote = document.getElementById('tabNote');
+      const previewPanel = document.getElementById('previewPanel');
+
+      if (tab === 'preview') {
+        codeContent.style.display = 'none';
+        previewPanel.style.gridRow = '1 / 3';
+        refreshPreview();
+      } else {
+        codeContent.style.display = 'flex';
+        previewPanel.style.gridRow = '';
+
+        if (tab === 'html') {
+          tabNote.textContent = '';
+          tabNote.classList.remove('visible');
+        } else if (tab === 'css') {
+          tabNote.textContent = '💡 CSS is embedded in the <style> tag inside the full HTML. Edit it in the code below.';
+          tabNote.classList.add('visible');
+        } else if (tab === 'js') {
+          tabNote.textContent = '💡 JavaScript is embedded in the <script> tag inside the full HTML. Edit it in the code below.';
+          tabNote.classList.add('visible');
+        }
+      }
+    }
+
+    /* ── Toolbar Actions ────────────────────────────────────── */
+    function copyCode() {
+      const code = document.getElementById('htmlEditor').value;
+      GenzUtils.copyToClipboard(code);
+    }
+
+    function saveProject() {
+      const code = document.getElementById('htmlEditor').value;
+      GenzUtils.saveToStorage('webbuilder_project', { type: selectedProjectType, code });
+      GenzUtils.showToast('Project saved!', 'success');
+    }
+
+    async function downloadAsZip() {
+      const code = document.getElementById('htmlEditor').value;
+      if (!code.trim()) {
+        GenzUtils.showToast('No code to download', 'warning');
+        return;
+      }
+      const zip = new JSZip();
+      zip.file('index.html', code);
+      zip.file('README.md',
+        `# ${selectedProjectType}\n\nGenerated by GenzTool.dev AI Web Builder\n\nOpen index.html in your browser to view the project.\n`
+      );
+      const blob = await zip.generateAsync({ type: 'blob' });
+      GenzUtils.triggerDownload(blob, `${selectedProjectType.toLowerCase().replace(/\s+/g, '-')}.zip`);
+      GenzUtils.showToast('ZIP downloaded!', 'success');
+    }
+
+    /* ── Live sync (debounced) ──────────────────────────────── */
+    document.getElementById('htmlEditor').addEventListener('input',
+      GenzUtils.debounce(() => {
+        refreshPreview();
+        generatedCode = document.getElementById('htmlEditor').value;
+      }, 1000)
+    );
+
+    /* ── Fallback Templates Router ──────────────────────────── */
+    function getFallbackTemplate(type) {
+      switch (type) {
+        case 'Portfolio':        return getPortfolioTemplate();
+        case 'Resume':           return getResumeTemplate();
+        case 'E-commerce Site':  return getEcommerceTemplate();
+        case 'Blog Site':        return getBlogTemplate();
+        case 'Game':             return getGameTemplate();
+        case 'SaaS Landing Page':return getSaaSTemplate();
+        default:                 return getGenericTemplate(type);
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: Portfolio
+    ════════════════════════════════════════════════════════ */
+    function getPortfolioTemplate() {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alex Morgan — Portfolio</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0f;--surface:#10101a;--purple:#7c3aed;--cyan:#06b6d4;--text:#e2e8f0;--muted:rgba(226,232,240,.55)}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+/* Orbs */
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}
+.orb1{width:600px;height:600px;background:rgba(124,58,237,.18);top:-200px;left:-200px}
+.orb2{width:500px;height:500px;background:rgba(6,182,212,.15);bottom:-150px;right:-150px}
+/* Navbar */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 60px;background:rgba(10,10,15,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)}
+.nav-logo{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:32px;list-style:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-weight:500;font-size:.9rem;transition:.25s}
+.nav-links a:hover{color:var(--text)}
+/* Hero */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:120px 20px 80px;position:relative;z-index:1}
+.hero-tag{display:inline-block;padding:6px 18px;border-radius:999px;border:1px solid rgba(124,58,237,.4);background:rgba(124,58,237,.1);color:#a78bfa;font-size:.8rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:24px}
+.hero h1{font-size:clamp(2.5rem,6vw,5rem);font-weight:800;line-height:1.1;margin-bottom:20px}
+.gradient-text{background:linear-gradient(135deg,#7c3aed,#06b6d4,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.typing-line{font-size:clamp(1rem,2.5vw,1.5rem);color:var(--cyan);min-height:2rem;margin-bottom:28px;font-weight:600}
+.hero-desc{max-width:560px;margin:0 auto 40px;color:var(--muted);line-height:1.7;font-size:1.05rem}
+.cta-group{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.btn-glow{padding:14px 32px;border-radius:50px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-weight:700;font-size:.95rem;cursor:pointer;border:none;transition:.3s;text-decoration:none;display:inline-block}
+.btn-glow:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(124,58,237,.5)}
+.btn-outline{padding:14px 32px;border-radius:50px;border:1px solid rgba(255,255,255,.2);color:var(--text);background:transparent;font-weight:600;cursor:pointer;font-size:.95rem;transition:.3s;text-decoration:none;display:inline-block}
+.btn-outline:hover{border-color:#7c3aed;background:rgba(124,58,237,.1)}
+/* Section */
+section{padding:100px 60px;position:relative;z-index:1}
+.section-label{font-size:.75rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--cyan);margin-bottom:12px}
+.section-title{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;margin-bottom:16px}
+.section-sub{color:var(--muted);max-width:560px;line-height:1.7;margin-bottom:56px}
+/* Projects */
+.projects-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;max-width:1100px;margin:0 auto}
+.project-card{background:var(--surface);border:1px solid rgba(255,255,255,.07);border-radius:20px;overflow:hidden;transition:.35s;cursor:pointer}
+.project-card:hover{transform:translateY(-8px);box-shadow:0 24px 60px rgba(0,0,0,.5);border-color:rgba(124,58,237,.4)}
+.project-thumb{height:180px;display:flex;align-items:center;justify-content:center;font-size:3.5rem}
+.pc1{background:linear-gradient(135deg,#1e1033,#2d1b69)}
+.pc2{background:linear-gradient(135deg,#0c1a2e,#0e4063)}
+.pc3{background:linear-gradient(135deg,#1a0a2e,#4a1050)}
+.project-info{padding:24px}
+.project-info h3{font-size:1.15rem;font-weight:700;margin-bottom:8px}
+.project-info p{color:var(--muted);font-size:.875rem;line-height:1.6;margin-bottom:16px}
+.project-tags{display:flex;gap:8px;flex-wrap:wrap}
+.tag{padding:4px 12px;border-radius:999px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.25);color:#a78bfa;font-size:.7rem;font-weight:600}
+/* Skills */
+.skills-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:900px;margin:0 auto}
+.skill-item{margin-bottom:20px}
+.skill-header{display:flex;justify-content:space-between;margin-bottom:8px;font-size:.875rem;font-weight:600}
+.skill-bar{height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.skill-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#7c3aed,#06b6d4);transform:scaleX(0);transform-origin:left;transition:transform 1s cubic-bezier(.4,0,.2,1)}
+.skill-fill.animated{transform:scaleX(1)}
+/* Contact */
+.contact-section{text-align:center;max-width:700px;margin:0 auto}
+.contact-links{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:40px}
+.contact-link{display:flex;align-items:center;gap:10px;padding:14px 28px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text);text-decoration:none;font-weight:600;transition:.3s}
+.contact-link:hover{background:rgba(124,58,237,.15);border-color:rgba(124,58,237,.4);transform:translateY(-3px)}
+/* Footer */
+footer{text-align:center;padding:40px 20px;border-top:1px solid rgba(255,255,255,.06);color:var(--muted);font-size:.875rem}
+@media(max-width:768px){nav{padding:16px 20px}.nav-links{display:none}section{padding:80px 20px}}
+</style>
+</head>
+<body>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<nav>
+  <div class="nav-logo">AM</div>
+  <ul class="nav-links">
+    <li><a href="#projects">Projects</a></li>
+    <li><a href="#skills">Skills</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div>
+    <div class="hero-tag">✨ Available for hire</div>
+    <h1>Hi, I'm <span class="gradient-text">Alex Morgan</span></h1>
+    <div class="typing-line" id="typingEl"></div>
+    <p class="hero-desc">I craft immersive digital experiences — from sleek interfaces to powerful web applications. Let's build something amazing together.</p>
+    <div class="cta-group">
+      <a href="#projects" class="btn-glow">View My Work</a>
+      <a href="#contact" class="btn-outline">Get In Touch</a>
+    </div>
+  </div>
+</section>
+
+<section id="projects">
+  <div style="text-align:center">
+    <div class="section-label">My Work</div>
+    <h2 class="section-title">Featured <span class="gradient-text">Projects</span></h2>
+    <p class="section-sub" style="margin:0 auto 56px">A showcase of projects I've built with passion and precision.</p>
+  </div>
+  <div class="projects-grid">
+    <div class="project-card">
+      <div class="project-thumb pc1">🚀</div>
+      <div class="project-info">
+        <h3>AstroLaunch Dashboard</h3>
+        <p>A real-time mission control dashboard with live telemetry, charts, and 3D orbit visualization.</p>
+        <div class="project-tags"><span class="tag">React</span><span class="tag">Three.js</span><span class="tag">WebSocket</span></div>
+      </div>
+    </div>
+    <div class="project-card">
+      <div class="project-thumb pc2">🌊</div>
+      <div class="project-info">
+        <h3>OceanAI Explorer</h3>
+        <p>An AI-powered marine biology platform with species recognition and deep-sea data mapping.</p>
+        <div class="project-tags"><span class="tag">Python</span><span class="tag">TensorFlow</span><span class="tag">D3.js</span></div>
+      </div>
+    </div>
+    <div class="project-card">
+      <div class="project-thumb pc3">🎵</div>
+      <div class="project-info">
+        <h3>Synthwave Studio</h3>
+        <p>A browser-based digital audio workstation with MIDI support, effects chain, and cloud sync.</p>
+        <div class="project-tags"><span class="tag">Web Audio API</span><span class="tag">Vue.js</span><span class="tag">Node.js</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="skills" style="background:rgba(255,255,255,.015)">
+  <div style="text-align:center">
+    <div class="section-label">Expertise</div>
+    <h2 class="section-title">My <span class="gradient-text">Skills</span></h2>
+    <p class="section-sub" style="margin:0 auto 56px">Technologies I work with every day.</p>
+  </div>
+  <div class="skills-grid">
+    <div>
+      <div class="skill-item"><div class="skill-header"><span>JavaScript / TypeScript</span><span>95%</span></div><div class="skill-bar"><div class="skill-fill" style="--w:.95"></div></div></div>
+      <div class="skill-item"><div class="skill-header"><span>React / Vue</span><span>90%</span></div><div class="skill-bar"><div class="skill-fill" style="--w:.90"></div></div></div>
+      <div class="skill-item"><div class="skill-header"><span>Node.js / Express</span><span>85%</span></div><div class="skill-bar"><div class="skill-fill" style="--w:.85"></div></div></div>
+    </div>
+    <div>
+      <div class="skill-item"><div class="skill-header"><span>CSS / Tailwind</span><span>92%</span></div><div class="skill-bar"><div class="skill-fill" style="--w:.92"></div></div></div>
+      <div class="skill-item"><div class="skill-header"><span>Python / AI / ML</span><span>78%</span></div><div class="skill-bar"><div class="skill-fill" style="--w:.78"></div></div></div>
+      <div class="skill-item"><div class="skill-header"><span>PostgreSQL / MongoDB</span><span>80%</span></div><div class="skill-bar"><div class="skill-fill" style="--w:.80"></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="contact-section">
+    <div class="section-label">Let's Talk</div>
+    <h2 class="section-title">Get In <span class="gradient-text">Touch</span></h2>
+    <p style="color:rgba(226,232,240,.55);line-height:1.7;font-size:1.05rem">I'm open to freelance projects, full-time roles, and interesting collaborations. Drop me a line!</p>
+    <div class="contact-links">
+      <a href="mailto:alex@example.com" class="contact-link">📧 alex@example.com</a>
+      <a href="#" class="contact-link">🐙 GitHub</a>
+      <a href="#" class="contact-link">💼 LinkedIn</a>
+      <a href="#" class="contact-link">🐦 Twitter</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Crafted with ❤️ by Alex Morgan &nbsp;·&nbsp; © 2025</p>
+</footer>
+
+<script>
+const phrases=['Developer','Designer','Creator','Problem Solver','Open Source Contributor'];
+let pi=0,ci=0,del=false;
+const el=document.getElementById('typingEl');
+function type(){
+  const phrase=phrases[pi];
+  if(!del){
+    el.textContent=phrase.slice(0,++ci);
+    if(ci===phrase.length){del=true;setTimeout(type,1800);return}
+  }else{
+    el.textContent=phrase.slice(0,--ci);
+    if(ci===0){del=false;pi=(pi+1)%phrases.length}
+  }
+  setTimeout(type,del?60:100);
+}
+type();
+
+// Animate skill bars on scroll
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.querySelectorAll('.skill-fill').forEach((f,i)=>{
+        const w=parseFloat(f.style.getPropertyValue('--w')||0.8);
+        setTimeout(()=>{f.style.width=(w*100)+'%';f.classList.add('animated')},i*150);
+      });
+    }
+  });
+},{threshold:.3});
+document.querySelectorAll('#skills').forEach(s=>observer.observe(s));
+</script>
+</body>
+</html>`;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: Resume
+    ════════════════════════════════════════════════════════ */
+    function getResumeTemplate() {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jordan Lee — Resume</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f8fafc;color:#1e293b;line-height:1.6}
+.page{max-width:960px;margin:40px auto;background:#fff;box-shadow:0 4px 40px rgba(0,0,0,.12);border-radius:16px;overflow:hidden;display:grid;grid-template-columns:1fr 300px}
+.main{padding:48px 40px}
+.sidebar{background:#1e293b;color:#e2e8f0;padding:40px 28px}
+/* Header */
+.resume-header{border-bottom:3px solid #7c3aed;padding-bottom:28px;margin-bottom:32px}
+.resume-header h1{font-size:2.2rem;font-weight:800;color:#0f172a;letter-spacing:-.02em}
+.resume-header .title{font-size:1rem;color:#7c3aed;font-weight:600;margin:6px 0 16px}
+.resume-header .contact-row{display:flex;gap:20px;flex-wrap:wrap;font-size:.8rem;color:#64748b}
+.contact-row span{display:flex;align-items:center;gap:5px}
+/* Section titles */
+.sec{margin-bottom:36px}
+.sec-title{font-size:.7rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;margin-bottom:18px;padding-bottom:6px;border-bottom:1px solid #e2e8f0}
+/* Experience */
+.exp-item{margin-bottom:24px;padding-left:16px;border-left:2px solid #e2e8f0;position:relative}
+.exp-item::before{content:'';position:absolute;left:-5px;top:6px;width:8px;height:8px;border-radius:50%;background:#7c3aed}
+.exp-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:4px}
+.exp-header h3{font-weight:700;font-size:.95rem}
+.exp-date{font-size:.75rem;color:#94a3b8;background:#f1f5f9;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.exp-company{font-size:.85rem;color:#7c3aed;font-weight:600;margin-bottom:6px}
+.exp-desc{font-size:.85rem;color:#64748b;line-height:1.65}
+.exp-desc li{margin-left:16px;margin-bottom:3px}
+/* Education */
+.edu-item{margin-bottom:20px}
+.edu-item h3{font-weight:700;font-size:.95rem}
+.edu-item .school{color:#7c3aed;font-size:.85rem;font-weight:600}
+.edu-item .period{font-size:.75rem;color:#94a3b8;margin-top:2px}
+/* Sidebar */
+.sb-title{font-size:.65rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;margin:28px 0 14px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-title:first-child{margin-top:0}
+.skill-row{margin-bottom:14px}
+.skill-name{font-size:.82rem;font-weight:600;margin-bottom:5px;display:flex;justify-content:space-between;color:#e2e8f0}
+.skill-bar{height:6px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden}
+.skill-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#7c3aed,#06b6d4)}
+.contact-item{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:.82rem;color:#cbd5e1}
+.lang-item{display:flex;justify-content:space-between;font-size:.82rem;color:#cbd5e1;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.07)}
+@media print{body{background:#fff}.page{box-shadow:none;margin:0;border-radius:0}}
+@media(max-width:720px){.page{grid-template-columns:1fr}.sidebar{order:-1}.main{padding:28px 20px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="main">
+    <div class="resume-header">
+      <h1>Jordan Lee</h1>
+      <div class="title">Senior Full Stack Developer</div>
+      <div class="contact-row">
+        <span>📧 jordan@example.com</span>
+        <span>📞 +1 (555) 234-5678</span>
+        <span>🌐 jordanlee.dev</span>
+        <span>📍 San Francisco, CA</span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Work Experience</div>
+      <div class="exp-item">
+        <div class="exp-header"><h3>Lead Frontend Engineer</h3><span class="exp-date">2022 – Present</span></div>
+        <div class="exp-company">Stripe · San Francisco, CA</div>
+        <ul class="exp-desc">
+          <li>Led a team of 8 engineers building Stripe's merchant dashboard (React, TypeScript)</li>
+          <li>Reduced page load time by 45% through code-splitting and lazy loading</li>
+          <li>Established component library used across 4 product teams</li>
+        </ul>
+      </div>
+      <div class="exp-item">
+        <div class="exp-header"><h3>Senior Software Engineer</h3><span class="exp-date">2019 – 2022</span></div>
+        <div class="exp-company">Shopify · Remote</div>
+        <ul class="exp-desc">
+          <li>Built storefront customization tools serving 1M+ merchants</li>
+          <li>Designed and implemented GraphQL API layer with 99.9% uptime</li>
+          <li>Mentored 5 junior engineers and ran bi-weekly code reviews</li>
+        </ul>
+      </div>
+      <div class="exp-item">
+        <div class="exp-header"><h3>Full Stack Developer</h3><span class="exp-date">2017 – 2019</span></div>
+        <div class="exp-company">Acme Corp · New York, NY</div>
+        <ul class="exp-desc">
+          <li>Developed real-time analytics dashboard with D3.js and WebSockets</li>
+          <li>Migrated monolithic Rails app to microservices (Node.js, Docker)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Education</div>
+      <div class="edu-item">
+        <h3>B.S. Computer Science</h3>
+        <div class="school">Stanford University</div>
+        <div class="period">2013 – 2017 · GPA 3.8 / 4.0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="sb-title">Contact</div>
+    <div class="contact-item">📧 jordan@example.com</div>
+    <div class="contact-item">🐙 github.com/jordanlee</div>
+    <div class="contact-item">💼 linkedin.com/in/jordanlee</div>
+    <div class="contact-item">📍 San Francisco, CA</div>
+
+    <div class="sb-title">Technical Skills</div>
+    <div class="skill-row"><div class="skill-name"><span>JavaScript / TS</span><span>96%</span></div><div class="skill-bar"><div class="skill-fill" style="width:96%"></div></div></div>
+    <div class="skill-row"><div class="skill-name"><span>React / Next.js</span><span>93%</span></div><div class="skill-bar"><div class="skill-fill" style="width:93%"></div></div></div>
+    <div class="skill-row"><div class="skill-name"><span>Node.js</span><span>88%</span></div><div class="skill-bar"><div class="skill-fill" style="width:88%"></div></div></div>
+    <div class="skill-row"><div class="skill-name"><span>Python</span><span>75%</span></div><div class="skill-bar"><div class="skill-fill" style="width:75%"></div></div></div>
+    <div class="skill-row"><div class="skill-name"><span>PostgreSQL</span><span>82%</span></div><div class="skill-bar"><div class="skill-fill" style="width:82%"></div></div></div>
+    <div class="skill-row"><div class="skill-name"><span>Docker / K8s</span><span>70%</span></div><div class="skill-bar"><div class="skill-fill" style="width:70%"></div></div></div>
+
+    <div class="sb-title">Languages</div>
+    <div class="lang-item"><span>English</span><span>Native</span></div>
+    <div class="lang-item"><span>Mandarin</span><span>Fluent</span></div>
+    <div class="lang-item"><span>Spanish</span><span>Conversational</span></div>
+
+    <div class="sb-title">Certifications</div>
+    <div style="font-size:.8rem;color:#cbd5e1;line-height:1.8">
+      ✅ AWS Solutions Architect<br>
+      ✅ Google Cloud Professional<br>
+      ✅ Meta Frontend Developer
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: E-commerce
+    ════════════════════════════════════════════════════════ */
+    function getEcommerceTemplate() {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShopWave — Online Store</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f8fafc;color:#1e293b}
+/* Header */
+header{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);position:sticky;top:0;z-index:100;padding:0 40px}
+.header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{font-size:1.5rem;font-weight:800;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:28px;list-style:none}
+.nav-links a{text-decoration:none;color:#64748b;font-weight:500;font-size:.9rem;transition:.2s}
+.nav-links a:hover{color:#7c3aed}
+.cart-btn{position:relative;background:#7c3aed;color:#fff;border:none;border-radius:999px;padding:9px 20px;font-weight:700;cursor:pointer;font-size:.875rem;transition:.2s}
+.cart-btn:hover{background:#6d28d9;transform:translateY(-1px)}
+.cart-count{position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.65rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+/* Hero Banner */
+.hero{background:linear-gradient(135deg,#7c3aed 0%,#06b6d4 100%);color:#fff;padding:80px 40px;text-align:center}
+.hero-tag{display:inline-block;background:rgba(255,255,255,.2);padding:5px 16px;border-radius:999px;font-size:.8rem;font-weight:700;letter-spacing:.1em;margin-bottom:16px}
+.hero h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;margin-bottom:12px}
+.hero p{font-size:1.1rem;opacity:.85;margin-bottom:28px}
+.hero-btn{display:inline-block;background:#fff;color:#7c3aed;padding:14px 36px;border-radius:50px;font-weight:800;font-size:1rem;cursor:pointer;border:none;transition:.2s}
+.hero-btn:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.25)}
+/* Products */
+.products-section{max-width:1200px;margin:0 auto;padding:60px 40px}
+.products-section h2{font-size:1.6rem;font-weight:800;margin-bottom:32px;color:#0f172a}
+.products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:24px}
+.product-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:.3s;cursor:pointer}
+.product-card:hover{transform:translateY(-6px);box-shadow:0 16px 40px rgba(0,0,0,.12)}
+.product-img{width:100%;height:220px;object-fit:cover;display:block}
+.product-body{padding:18px}
+.product-body h3{font-weight:700;font-size:.95rem;margin-bottom:6px;color:#0f172a}
+.product-cat{font-size:.75rem;color:#7c3aed;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em}
+.product-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+.price{font-size:1.15rem;font-weight:800;color:#0f172a}
+.price span{font-size:.8rem;font-weight:400;color:#94a3b8;text-decoration:line-through;margin-right:4px}
+.add-btn{background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;font-size:.8rem;cursor:pointer;transition:.2s}
+.add-btn:hover{transform:scale(1.05);box-shadow:0 4px 16px rgba(124,58,237,.4)}
+.add-btn.added{background:linear-gradient(135deg,#10b981,#06b6d4)}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:14px 22px;border-radius:12px;font-weight:600;font-size:.875rem;transform:translateY(100px);opacity:0;transition:.35s;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.toast.show{transform:translateY(0);opacity:1}
+/* Footer */
+footer{background:#1e293b;color:#94a3b8;text-align:center;padding:40px 20px;font-size:.875rem;margin-top:60px}
+@media(max-width:640px){header{padding:0 16px}.products-section{padding:40px 16px}.hero{padding:60px 20px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="logo">ShopWave</div>
+    <ul class="nav-links">
+      <li><a href="#">New In</a></li>
+      <li><a href="#">Women</a></li>
+      <li><a href="#">Men</a></li>
+      <li><a href="#">Sale</a></li>
+    </ul>
+    <button class="cart-btn" onclick="openCart()">🛒 Cart <span class="cart-count" id="cartCount">0</span></button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-tag">☀️ SUMMER SALE — UP TO 60% OFF</div>
+  <h1>Style That Speaks</h1>
+  <p>Discover our curated collection of premium fashion and accessories</p>
+  <button class="hero-btn" onclick="document.querySelector('.products-section').scrollIntoView({behavior:'smooth'})">Shop Now →</button>
+</div>
+
+<div class="products-section">
+  <h2>Featured Products</h2>
+  <div class="products-grid" id="productsGrid"></div>
+</div>
+
+<div id="toastEl" class="toast"></div>
+
+<footer>
+  <p>© 2025 ShopWave · Free shipping on orders over $50 · 30-day returns</p>
+</footer>
+
+<script>
+const products=[
+  {id:1,name:'Minimal White Sneakers',cat:'Footwear',price:89,oldPrice:129,img:'https://picsum.photos/300/300?random=1'},
+  {id:2,name:'Classic Leather Jacket',cat:'Outerwear',price:199,oldPrice:299,img:'https://picsum.photos/300/300?random=2'},
+  {id:3,name:'Slim Fit Chinos',cat:'Bottoms',price:59,oldPrice:89,img:'https://picsum.photos/300/300?random=3'},
+  {id:4,name:'Oversized Linen Shirt',cat:'Tops',price:49,oldPrice:79,img:'https://picsum.photos/300/300?random=4'},
+  {id:5,name:'Structured Tote Bag',cat:'Accessories',price:79,oldPrice:110,img:'https://picsum.photos/300/300?random=5'},
+  {id:6,name:'Polarized Sunglasses',cat:'Accessories',price:39,oldPrice:65,img:'https://picsum.photos/300/300?random=6'},
+];
+let cartCount=0;
+const grid=document.getElementById('productsGrid');
+products.forEach(p=>{
+  const card=document.createElement('div');
+  card.className='product-card';
+  card.innerHTML=\`
+    <img class="product-img" src="\${p.img}" alt="\${p.name}" loading="lazy">
+    <div class="product-body">
+      <div class="product-cat">\${p.cat}</div>
+      <h3>\${p.name}</h3>
+      <div class="product-footer">
+        <div class="price"><span>$\${p.oldPrice}</span>$\${p.price}</div>
+        <button class="add-btn" id="btn\${p.id}" onclick="addToCart(\${p.id},'\${p.name}',this)">Add to Cart</button>
+      </div>
+    </div>
+  \`;
+  grid.appendChild(card);
+});
+function addToCart(id,name,btn){
+  cartCount++;
+  document.getElementById('cartCount').textContent=cartCount;
+  btn.textContent='✓ Added';btn.classList.add('added');
+  setTimeout(()=>{btn.textContent='Add to Cart';btn.classList.remove('added')},2000);
+  showToast('🛒 '+name+' added to cart!');
+}
+function openCart(){showToast('🛒 '+cartCount+' item'+(cartCount!==1?'s':'')+' in your cart');}
+function showToast(msg){
+  const t=document.getElementById('toastEl');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>`;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: Blog
+    ════════════════════════════════════════════════════════ */
+    function getBlogTemplate() {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perspective — A Modern Blog</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#fafafa;color:#111827;line-height:1.6}
+header{background:#fff;border-bottom:1px solid #e5e7eb;padding:0 40px;position:sticky;top:0;z-index:100}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:60px}
+.blog-logo{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:800;color:#111827}
+.blog-logo span{color:#7c3aed}
+.header-nav{display:flex;gap:28px;list-style:none}
+.header-nav a{text-decoration:none;color:#6b7280;font-size:.875rem;font-weight:500;transition:.2s}
+.header-nav a:hover{color:#7c3aed}
+.subscribe-btn{background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-weight:700;font-size:.8rem;cursor:pointer;transition:.2s}
+.subscribe-btn:hover{background:#6d28d9}
+/* Featured */
+.featured{max-width:1100px;margin:48px auto;padding:0 40px;display:grid;grid-template-columns:1.6fr 1fr;gap:32px;align-items:center}
+.featured-img{width:100%;height:400px;object-fit:cover;border-radius:20px;display:block}
+.featured-content{}
+.tag{display:inline-block;background:#f3f0ff;color:#7c3aed;border-radius:999px;padding:4px 14px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px}
+.featured-content h1{font-family:'Playfair Display',serif;font-size:2rem;font-weight:800;line-height:1.25;margin-bottom:14px;color:#111827}
+.featured-content p{color:#6b7280;line-height:1.7;margin-bottom:20px;font-size:.95rem}
+.author-row{display:flex;align-items:center;gap:12px}
+.avatar{width:40px;height:40px;border-radius:50%;object-fit:cover}
+.author-info .name{font-weight:700;font-size:.875rem}
+.author-info .date{font-size:.75rem;color:#9ca3af}
+.read-more{display:inline-block;color:#7c3aed;font-weight:700;font-size:.875rem;text-decoration:none;margin-top:16px;border-bottom:2px solid #7c3aed;padding-bottom:2px;transition:.2s}
+.read-more:hover{opacity:.75}
+/* Articles grid */
+.articles{max-width:1100px;margin:60px auto;padding:0 40px}
+.articles h2{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:800;margin-bottom:28px;color:#111827}
+.articles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:28px}
+.article-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:.3s;cursor:pointer}
+.article-card:hover{transform:translateY(-6px);box-shadow:0 16px 40px rgba(0,0,0,.1)}
+.article-img{width:100%;height:180px;object-fit:cover;display:block}
+.article-body{padding:22px}
+.article-body .tag{margin-bottom:10px}
+.article-body h3{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;margin-bottom:8px;line-height:1.35;color:#111827}
+.article-body p{color:#6b7280;font-size:.85rem;line-height:1.6;margin-bottom:14px}
+.article-footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f3f4f6;padding-top:12px}
+.article-footer .date{font-size:.75rem;color:#9ca3af}
+.article-footer .read-time{font-size:.75rem;color:#7c3aed;font-weight:600}
+footer{background:#111827;color:#9ca3af;text-align:center;padding:40px 20px;font-size:.875rem;margin-top:60px}
+@media(max-width:768px){.featured{grid-template-columns:1fr}.featured-img{height:240px}.articles{padding:0 20px}.header-nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="blog-logo">Per<span>spective</span></div>
+    <ul class="header-nav">
+      <li><a href="#">Technology</a></li>
+      <li><a href="#">Design</a></li>
+      <li><a href="#">Culture</a></li>
+      <li><a href="#">Science</a></li>
+    </ul>
+    <button class="subscribe-btn">Subscribe</button>
+  </div>
+</header>
+
+<div class="featured">
+  <img class="featured-img" src="https://picsum.photos/700/400?random=10" alt="Featured">
+  <div class="featured-content">
+    <span class="tag">Technology</span>
+    <h1>The Future of AI in Everyday Creative Work</h1>
+    <p>Artificial intelligence is no longer just a buzzword — it's reshaping how designers, writers, and developers approach their craft. Here's what it means for the creative industry.</p>
+    <div class="author-row">
+      <img class="avatar" src="https://picsum.photos/40/40?random=20" alt="Author">
+      <div class="author-info">
+        <div class="name">Sarah Chen</div>
+        <div class="date">June 12, 2025 · 8 min read</div>
+      </div>
+    </div>
+    <a href="#" class="read-more">Read Full Article →</a>
+  </div>
+</div>
+
+<div class="articles">
+  <h2>Latest Articles</h2>
+  <div class="articles-grid">
+    <div class="article-card">
+      <img class="article-img" src="https://picsum.photos/400/200?random=11" alt="">
+      <div class="article-body">
+        <span class="tag">Design</span>
+        <h3>Minimalism in UI: Why Less Really Is More</h3>
+        <p>Explore how stripping away the noise leads to better user experiences and higher conversion rates.</p>
+        <div class="article-footer"><span class="date">June 10, 2025</span><span class="read-time">5 min read</span></div>
+      </div>
+    </div>
+    <div class="article-card">
+      <img class="article-img" src="https://picsum.photos/400/200?random=12" alt="">
+      <div class="article-body">
+        <span class="tag" style="background:#fff0f9;color:#ec4899">Culture</span>
+        <h3>How Remote Work Changed the Way We Collaborate</h3>
+        <p>Three years after the great remote shift, what have we learned about team dynamics and productivity?</p>
+        <div class="article-footer"><span class="date">June 8, 2025</span><span class="read-time">7 min read</span></div>
+      </div>
+    </div>
+    <div class="article-card">
+      <img class="article-img" src="https://picsum.photos/400/200?random=13" alt="">
+      <div class="article-body">
+        <span class="tag" style="background:#f0fdf4;color:#10b981">Science</span>
+        <h3>Quantum Computing: From Lab to Launch</h3>
+        <p>The race to build practical quantum computers is heating up. Here's where the top players stand.</p>
+        <div class="article-footer"><span class="date">June 5, 2025</span><span class="read-time">10 min read</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>© 2025 Perspective · Written by humans, for humans · <a href="#" style="color:#7c3aed">Privacy Policy</a></p>
+</footer>
+</body>
+</html>`;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: Snake Game
+    ════════════════════════════════════════════════════════ */
+    function getGameTemplate() {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNAKE GAME</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0f;color:#e2e8f0;font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;user-select:none}
+h1{font-size:2.5rem;font-weight:800;letter-spacing:.2em;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;text-transform:uppercase}
+.subtitle{color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.15em;margin-bottom:24px}
+.score-board{display:flex;gap:40px;margin-bottom:20px}
+.score-box{text-align:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 28px}
+.score-label{font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:4px}
+.score-value{font-size:1.6rem;font-weight:800;color:#06b6d4}
+#canvas{border:2px solid rgba(124,58,237,.5);border-radius:8px;box-shadow:0 0 40px rgba(124,58,237,.25),0 0 80px rgba(6,182,212,.1);display:block}
+.controls{margin-top:20px;display:flex;gap:12px}
+.ctrl-btn{padding:12px 28px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e2e8f0;font-size:.9rem;font-weight:700;cursor:pointer;transition:.2s;letter-spacing:.05em}
+.ctrl-btn:hover{background:rgba(124,58,237,.25);border-color:rgba(124,58,237,.5)}
+.instructions{margin-top:16px;font-size:.75rem;color:rgba(255,255,255,.35);text-align:center;line-height:1.8}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,15,.85);border-radius:6px;gap:12px;z-index:10}
+.overlay h2{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.overlay p{color:rgba(255,255,255,.6);font-size:.9rem}
+.canvas-wrap{position:relative;display:inline-block}
+</style>
+</head>
+<body>
+<h1>Snake Game</h1>
+<div class="subtitle">Use arrow keys or WASD to control</div>
+<div class="score-board">
+  <div class="score-box"><div class="score-label">Score</div><div class="score-value" id="score">0</div></div>
+  <div class="score-box"><div class="score-label">High Score</div><div class="score-value" id="hiScore">0</div></div>
+  <div class="score-box"><div class="score-label">Level</div><div class="score-value" id="level">1</div></div>
+</div>
+<div class="canvas-wrap">
+  <canvas id="canvas" width="420" height="420"></canvas>
+  <div class="overlay" id="overlay">
+    <h2>🐍 SNAKE</h2>
+    <p>Press Start or Space to play</p>
+  </div>
+</div>
+<div class="controls">
+  <button class="ctrl-btn" onclick="startGame()">▶ Start</button>
+  <button class="ctrl-btn" onclick="togglePause()">⏸ Pause</button>
+  <button class="ctrl-btn" onclick="resetGame()">↺ Reset</button>
+</div>
+<div class="instructions">Arrow Keys / WASD to move &nbsp;·&nbsp; Space to pause &nbsp;·&nbsp; Eat food to grow and score</div>
+
+<script>
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const CELL=20,COLS=21,ROWS=21;
+let snake,dir,nextDir,food,score,hiScore=0,level,speed,gameLoop,running,paused;
+
+function initState(){
+  snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir={x:1,y:0};nextDir={x:1,y:0};
+  score=0;level=1;speed=150;running=false;paused=false;
+  placeFood();update();
+}
+
+function placeFood(){
+  let pos;
+  do{pos={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)}}
+  while(snake.some(s=>s.x===pos.x&&s.y===pos.y));
+  food=pos;
+}
+
+function startGame(){
+  if(running)return;
+  document.getElementById('overlay').style.display='none';
+  running=true;paused=false;
+  if(gameLoop)clearInterval(gameLoop);
+  gameLoop=setInterval(tick,speed);
+}
+
+function togglePause(){
+  if(!running)return;
+  paused=!paused;
+  if(paused){clearInterval(gameLoop);showOverlay('⏸ Paused','Press Pause or Space to resume');}
+  else{document.getElementById('overlay').style.display='none';gameLoop=setInterval(tick,speed);}
+}
+
+function resetGame(){
+  clearInterval(gameLoop);
+  initState();
+  showOverlay('🐍 SNAKE','Press Start or Space to play');
+}
+
+function showOverlay(title,sub){
+  const o=document.getElementById('overlay');
+  o.style.display='flex';
+  o.innerHTML='<h2>'+title+'</h2><p>'+sub+'</p>';
+}
+
+function tick(){
+  dir=nextDir;
+  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  // Wall collision
+  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS){return gameOver();}
+  // Self collision
+  if(snake.some(s=>s.x===head.x&&s.y===head.y)){return gameOver();}
+  snake.unshift(head);
+  if(head.x===food.x&&head.y===food.y){
+    score+=10*level;
+    if(score>hiScore)hiScore=score;
+    if(score%(100*level)===0&&level<10){
+      level++;clearInterval(gameLoop);speed=Math.max(60,150-level*12);
+      gameLoop=setInterval(tick,speed);
+    }
+    placeFood();
+  }else{snake.pop();}
+  updateScores();draw();
+}
+
+function gameOver(){
+  clearInterval(gameLoop);running=false;
+  showOverlay('💀 Game Over','Score: '+score+' · Press Start to retry');
+}
+
+function updateScores(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('hiScore').textContent=hiScore;
+  document.getElementById('level').textContent=level;
+}
+
+function draw(){
+  // Background
+  ctx.fillStyle='#0d0d16';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CELL,0);ctx.lineTo(x*CELL,ROWS*CELL);ctx.stroke();}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CELL);ctx.lineTo(COLS*CELL,y*CELL);ctx.stroke();}
+  // Food
+  const fx=food.x*CELL,fy=food.y*CELL;
+  const grad=ctx.createRadialGradient(fx+CELL/2,fy+CELL/2,2,fx+CELL/2,fy+CELL/2,CELL/2);
+  grad.addColorStop(0,'#f472b6');grad.addColorStop(1,'#ec4899');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(fx+CELL/2,fy+CELL/2,CELL/2-2,0,Math.PI*2);ctx.fill();
+  // Glow
+  ctx.shadowColor='#ec4899';ctx.shadowBlur=12;ctx.fill();ctx.shadowBlur=0;
+  // Snake
+  snake.forEach((seg,i)=>{
+    const x=seg.x*CELL,y=seg.y*CELL;
+    const t=i/snake.length;
+    const r=Math.round(124+(6-124)*t),g=Math.round(58+(182-58)*t),b=Math.round(237+(212-237)*t);
+    ctx.fillStyle=\`rgb(\${r},\${g},\${b})\`;
+    if(i===0){
+      ctx.shadowColor=\`rgb(\${r},\${g},\${b})\`;ctx.shadowBlur=10;
+      ctx.beginPath();ctx.roundRect(x+1,y+1,CELL-2,CELL-2,4);ctx.fill();
+      ctx.shadowBlur=0;
+      // Eyes
+      ctx.fillStyle='#fff';
+      const ex=dir.x,ey=dir.y;
+      const ecx=x+CELL/2+ex*4,ecy=y+CELL/2+ey*4;
+      const ox=ey*4,oy=ex*4;
+      ctx.beginPath();ctx.arc(ecx+ox,ecy-oy,2.5,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(ecx-ox,ecy+oy,2.5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#111';
+      ctx.beginPath();ctx.arc(ecx+ox,ecy-oy,1,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(ecx-ox,ecy+oy,1,0,Math.PI*2);ctx.fill();
+    }else{
+      ctx.beginPath();ctx.roundRect(x+2,y+2,CELL-4,CELL-4,3);ctx.fill();
+    }
+  });
+}
+
+function update(){draw();}
+
+// Controls
+document.addEventListener('keydown',e=>{
+  const map={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0},
+    w:{x:0,y:-1},s:{x:0,y:1},a:{x:-1,y:0},d:{x:1,y:0}};
+  const nd=map[e.key];
+  if(nd&&!(nd.x===-dir.x&&nd.y===-dir.y)){nextDir=nd;e.preventDefault();}
+  if(e.key===' '){e.preventDefault();if(!running)startGame();else togglePause();}
+});
+
+// Touch support
+let ts=null;
+canvas.addEventListener('touchstart',e=>{ts=e.touches[0];e.preventDefault();},{passive:false});
+canvas.addEventListener('touchend',e=>{
+  if(!ts)return;
+  const dx=e.changedTouches[0].clientX-ts.clientX;
+  const dy=e.changedTouches[0].clientY-ts.clientY;
+  if(Math.abs(dx)>Math.abs(dy)){nextDir=dx>0?{x:1,y:0}:{x:-1,y:0};}
+  else{nextDir=dy>0?{x:0,y:1}:{x:0,y:-1};}
+  if(!running)startGame();
+  ts=null;e.preventDefault();
+},{passive:false});
+
+initState();
+</script>
+</body>
+</html>`;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: SaaS Landing Page
+    ════════════════════════════════════════════════════════ */
+    function getSaaSTemplate() {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowAI — Automate Your Workflow</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--p:#7c3aed;--c:#06b6d4;--bg:#06060c;--s:#0d0d1a;--text:#e2e8f0;--muted:rgba(226,232,240,.55)}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+/* Nav */
+nav{display:flex;align-items:center;justify-content:space-between;padding:20px 80px;position:sticky;top:0;z-index:100;background:rgba(6,6,12,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)}
+.nav-logo{font-size:1.3rem;font-weight:900;background:linear-gradient(135deg,var(--p),var(--c));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:32px;list-style:none}
+.nav-links a{text-decoration:none;color:var(--muted);font-weight:500;font-size:.875rem;transition:.2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{display:flex;gap:12px;align-items:center}
+.nav-login{color:var(--text);text-decoration:none;font-size:.875rem;font-weight:600;transition:.2s;padding:8px 16px}
+.nav-signup{background:linear-gradient(135deg,var(--p),var(--c));color:#fff;border:none;border-radius:8px;padding:9px 22px;font-weight:700;font-size:.875rem;cursor:pointer;transition:.2s}
+.nav-signup:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,58,237,.4)}
+/* Hero */
+.hero{text-align:center;padding:120px 40px 100px;position:relative;overflow:hidden}
+.hero-orb{position:absolute;border-radius:50%;filter:blur(100px);pointer-events:none}
+.orb1{width:700px;height:700px;background:rgba(124,58,237,.2);top:-300px;left:50%;transform:translateX(-50%)}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:999px;padding:6px 18px;font-size:.78rem;font-weight:700;letter-spacing:.08em;color:#a78bfa;margin-bottom:28px}
+.hero h1{font-size:clamp(2.5rem,6vw,5rem);font-weight:900;line-height:1.08;margin-bottom:20px;letter-spacing:-.03em}
+.grad{background:linear-gradient(135deg,var(--p),var(--c),#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{max-width:600px;margin:0 auto 40px;color:var(--muted);font-size:1.1rem;line-height:1.7}
+.hero-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.btn-hero{padding:15px 36px;border-radius:12px;font-weight:800;font-size:1rem;cursor:pointer;transition:.3s;border:none}
+.btn-hero.primary{background:linear-gradient(135deg,var(--p),var(--c));color:#fff}
+.btn-hero.primary:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(124,58,237,.5)}
+.btn-hero.outline{background:transparent;border:1px solid rgba(255,255,255,.2);color:var(--text)}
+.btn-hero.outline:hover{border-color:var(--p);background:rgba(124,58,237,.1)}
+.hero-demo{margin-top:64px;background:var(--s);border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden;max-width:900px;margin-left:auto;margin-right:auto;box-shadow:0 40px 80px rgba(0,0,0,.5)}
+.demo-bar{background:rgba(255,255,255,.04);padding:12px 20px;display:flex;align-items:center;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.r{background:#ef4444}.dot.y{background:#f59e0b}.dot.g{background:#10b981}
+.demo-content{padding:32px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.demo-card{background:rgba(255,255,255,.04);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,.06)}
+.demo-card h4{font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.metric{font-size:2rem;font-weight:900;background:linear-gradient(135deg,var(--p),var(--c));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.metric-sub{font-size:.75rem;color:var(--muted);margin-top:4px}
+/* Features */
+.features{padding:100px 80px;max-width:1200px;margin:0 auto}
+.section-label{font-size:.7rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--c);margin-bottom:12px}
+.features h2{font-size:clamp(1.8rem,4vw,3rem);font-weight:900;margin-bottom:16px;letter-spacing:-.02em}
+.features-sub{color:var(--muted);max-width:500px;line-height:1.7;margin-bottom:64px}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.feature-card{background:var(--s);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:32px;transition:.3s}
+.feature-card:hover{border-color:rgba(124,58,237,.4);transform:translateY(-6px);box-shadow:0 20px 50px rgba(0,0,0,.4)}
+.feature-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px}
+.fi1{background:rgba(124,58,237,.2)}.fi2{background:rgba(6,182,212,.2)}.fi3{background:rgba(236,72,153,.2)}
+.feature-card h3{font-size:1.1rem;font-weight:800;margin-bottom:10px}
+.feature-card p{color:var(--muted);font-size:.875rem;line-height:1.65}
+/* Pricing */
+.pricing{padding:100px 80px;text-align:center;position:relative}
+.pricing h2{font-size:clamp(1.8rem,4vw,3rem);font-weight:900;margin-bottom:12px;letter-spacing:-.02em}
+.pricing-sub{color:var(--muted);margin-bottom:60px}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1000px;margin:0 auto}
+.price-card{background:var(--s);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:36px 28px;text-align:left;transition:.3s}
+.price-card.featured{border-color:var(--p);background:rgba(124,58,237,.08);transform:scale(1.04);box-shadow:0 0 40px rgba(124,58,237,.25)}
+.price-badge{display:inline-block;background:var(--p);color:#fff;border-radius:999px;padding:3px 12px;font-size:.7rem;font-weight:700;margin-bottom:16px}
+.price-name{font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--muted)}
+.price-amount{font-size:2.5rem;font-weight:900;letter-spacing:-.03em;margin-bottom:4px}
+.price-amount sup{font-size:1rem;vertical-align:super;font-weight:600}
+.price-period{font-size:.8rem;color:var(--muted);margin-bottom:24px}
+.price-features{list-style:none;margin-bottom:28px;display:flex;flex-direction:column;gap:10px}
+.price-features li{font-size:.875rem;color:var(--muted);display:flex;align-items:center;gap:8px}
+.price-features li::before{content:'✓';color:#10b981;font-weight:800}
+.price-btn{width:100%;padding:13px;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;transition:.2s;border:none}
+.price-btn.outline{background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--text)}
+.price-btn.outline:hover{border-color:var(--p);background:rgba(124,58,237,.1)}
+.price-btn.filled{background:linear-gradient(135deg,var(--p),var(--c));color:#fff}
+.price-btn.filled:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(124,58,237,.4)}
+/* Testimonials */
+.testimonials{padding:80px 80px;max-width:1100px;margin:0 auto}
+.testimonials h2{font-size:2rem;font-weight:900;text-align:center;margin-bottom:48px}
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.testi-card{background:var(--s);border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:28px}
+.testi-quote{font-size:.9rem;color:var(--muted);line-height:1.7;margin-bottom:20px;font-style:italic}
+.testi-author{display:flex;align-items:center;gap:12px}
+.testi-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover}
+.testi-name{font-size:.875rem;font-weight:700}
+.testi-role{font-size:.75rem;color:var(--muted)}
+/* Footer */
+footer{background:var(--s);border-top:1px solid rgba(255,255,255,.06);padding:40px 80px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px}
+.footer-logo{font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,var(--p),var(--c));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+footer p{font-size:.8rem;color:var(--muted)}
+@media(max-width:900px){nav{padding:16px 20px}.nav-links{display:none}.features{padding:60px 20px}.features-grid{grid-template-columns:1fr}.pricing{padding:60px 20px}.pricing-grid{grid-template-columns:1fr}.price-card.featured{transform:none}.testimonials{padding:60px 20px}.testi-grid{grid-template-columns:1fr}.demo-content{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">FlowAI</div>
+  <ul class="nav-links">
+    <li><a href="#">Features</a></li>
+    <li><a href="#">Pricing</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">Blog</a></li>
+  </ul>
+  <div class="nav-cta">
+    <a class="nav-login" href="#">Log in</a>
+    <button class="nav-signup">Get Started Free →</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-orb orb1"></div>
+  <div class="hero-badge">🚀 Launching v2.0 — AI-powered automations</div>
+  <h1>Automate Your Workflow<br><span class="grad">10x Faster</span></h1>
+  <p>FlowAI connects your apps, automates repetitive tasks, and lets your AI agents run your business — so you can focus on what matters.</p>
+  <div class="hero-btns">
+    <button class="btn-hero primary">Start for Free →</button>
+    <button class="btn-hero outline">Watch Demo ▶</button>
+  </div>
+  <div class="hero-demo">
+    <div class="demo-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span style="margin-left:8px;font-size:.75rem;color:rgba(255,255,255,.3)">flowai.app/dashboard</span></div>
+    <div class="demo-content">
+      <div class="demo-card"><h4>Tasks Automated</h4><div class="metric">12,847</div><div class="metric-sub">↑ 34% this month</div></div>
+      <div class="demo-card"><h4>Time Saved</h4><div class="metric">284h</div><div class="metric-sub">across your team</div></div>
+      <div class="demo-card"><h4>Active Flows</h4><div class="metric">47</div><div class="metric-sub">running 24/7</div></div>
+      <div class="demo-card"><h4>Integrations</h4><div class="metric">200+</div><div class="metric-sub">apps connected</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="features">
+  <div class="section-label">Why FlowAI</div>
+  <h2>Everything you need to<br>automate at scale</h2>
+  <p class="features-sub">Build complex workflows in minutes, not months. No code required.</p>
+  <div class="features-grid">
+    <div class="feature-card"><div class="feature-icon fi1">⚡</div><h3>Visual Flow Builder</h3><p>Drag-and-drop interface to build powerful automations. Connect any app in seconds with 200+ pre-built integrations.</p></div>
+    <div class="feature-card"><div class="feature-icon fi2">🤖</div><h3>AI Agents</h3><p>Deploy intelligent agents that understand context, make decisions, and execute multi-step tasks autonomously.</p></div>
+    <div class="feature-card"><div class="feature-icon fi3">📊</div><h3>Real-time Analytics</h3><p>Track every automation, measure ROI, and get actionable insights to continuously improve your workflows.</p></div>
+  </div>
+</div>
+
+<div class="pricing">
+  <div class="section-label" style="text-align:center">Pricing</div>
+  <h2>Simple, transparent pricing</h2>
+  <p class="pricing-sub">Start free, scale as you grow. No hidden fees.</p>
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="price-name">Free</div>
+      <div class="price-amount"><sup>$</sup>0</div>
+      <div class="price-period">forever</div>
+      <ul class="price-features">
+        <li>5 active flows</li>
+        <li>1,000 tasks/month</li>
+        <li>10 integrations</li>
+        <li>Community support</li>
+      </ul>
+      <button class="price-btn outline">Get Started</button>
+    </div>
+    <div class="price-card featured">
+      <div class="price-badge">Most Popular</div>
+      <div class="price-name">Pro</div>
+      <div class="price-amount"><sup>$</sup>49</div>
+      <div class="price-period">per month</div>
+      <ul class="price-features">
+        <li>Unlimited flows</li>
+        <li>100,000 tasks/month</li>
+        <li>All 200+ integrations</li>
+        <li>AI agents (5 active)</li>
+        <li>Priority support</li>
+      </ul>
+      <button class="price-btn filled">Start Pro Trial →</button>
+    </div>
+    <div class="price-card">
+      <div class="price-name">Enterprise</div>
+      <div class="price-amount">Custom</div>
+      <div class="price-period">tailored plan</div>
+      <ul class="price-features">
+        <li>Unlimited everything</li>
+        <li>Custom AI models</li>
+        <li>SSO & advanced security</li>
+        <li>Dedicated success manager</li>
+        <li>SLA guarantee</li>
+      </ul>
+      <button class="price-btn outline">Contact Sales</button>
+    </div>
+  </div>
+</div>
+
+<div class="testimonials">
+  <h2>Loved by 10,000+ teams</h2>
+  <div class="testi-grid">
+    <div class="testi-card"><p class="testi-quote">"FlowAI cut our ops workload by 60%. The AI agents are genuinely mind-blowing — they handle tasks I thought required a human."</p><div class="testi-author"><img class="testi-avatar" src="https://picsum.photos/38/38?random=30" alt=""><div><div class="testi-name">Maria Gonzalez</div><div class="testi-role">COO at TechScale</div></div></div></div>
+    <div class="testi-card"><p class="testi-quote">"Set up our entire customer onboarding flow in 30 minutes. Used to take our team 2 days of manual work every week."</p><div class="testi-author"><img class="testi-avatar" src="https://picsum.photos/38/38?random=31" alt=""><div><div class="testi-name">James Park</div><div class="testi-role">Founder at LaunchPad</div></div></div></div>
+    <div class="testi-card"><p class="testi-quote">"The integrations are rock solid. We've automated 200+ workflows and the reliability is exceptional. Zero downtime in 8 months."</p><div class="testi-author"><img class="testi-avatar" src="https://picsum.photos/38/38?random=32" alt=""><div><div class="testi-name">Priya Sharma</div><div class="testi-role">Engineering Lead at Nexus</div></div></div></div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">FlowAI</div>
+  <p>© 2025 FlowAI, Inc. · All rights reserved</p>
+  <p style="font-size:.78rem;color:rgba(226,232,240,.3)">Privacy · Terms · Status</p>
+</footer>
+</body>
+</html>`;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TEMPLATE: Generic (for any other type)
+    ════════════════════════════════════════════════════════ */
+    function getGenericTemplate(type) {
+      const icons = {
+        'Mobile App': '📱', 'Admin Dashboard': '📊', 'Chat App': '💬',
+        'Weather App': '🌤', 'Restaurant Site': '🍽', 'Event Page': '🎉',
+        'NFT Gallery': '🖼', 'API Docs': '📖', 'Dev Tools': '🛠'
+      };
+      const icon = icons[type] || '🚀';
+      const colors = {
+        'Mobile App': ['#7c3aed','#06b6d4'],
+        'Admin Dashboard': ['#0f766e','#06b6d4'],
+        'Chat App': ['#7c3aed','#ec4899'],
+        'Weather App': ['#0284c7','#06b6d4'],
+        'Restaurant Site': ['#b45309','#f59e0b'],
+        'Event Page': ['#7c3aed','#ec4899'],
+        'NFT Gallery': ['#0f172a','#7c3aed'],
+        'API Docs': ['#1e293b','#06b6d4'],
+        'Dev Tools': ['#0f172a','#10b981'],
+      };
+      const [c1, c2] = colors[type] || ['#7c3aed', '#06b6d4'];
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${type} — GenzTool.dev</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#0a0a0f;color:#e2e8f0;min-height:100vh;overflow-x:hidden}
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px;position:relative}
+.bg-glow{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%,${c1}22 0%,transparent 60%);pointer-events:none}
+.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:8px 20px;font-size:.8rem;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.7);margin-bottom:28px}
+.icon{font-size:4rem;margin-bottom:20px;filter:drop-shadow(0 0 20px ${c1}88)}
+h1{font-size:clamp(2.5rem,7vw,5rem);font-weight:900;line-height:1.05;margin-bottom:18px;letter-spacing:-.03em;background:linear-gradient(135deg,${c1},${c2});-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{max-width:550px;color:rgba(226,232,240,.6);font-size:1.1rem;line-height:1.7;margin:0 auto 44px}
+.cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:80px}
+.btn-p{padding:14px 34px;border-radius:12px;background:linear-gradient(135deg,${c1},${c2});color:#fff;font-weight:800;font-size:.95rem;border:none;cursor:pointer;transition:.3s}
+.btn-p:hover{transform:translateY(-3px);box-shadow:0 12px 40px ${c1}55}
+.btn-s{padding:14px 34px;border-radius:12px;background:transparent;border:1px solid rgba(255,255,255,.18);color:#e2e8f0;font-weight:600;font-size:.95rem;cursor:pointer;transition:.3s}
+.btn-s:hover{border-color:${c1};background:${c1}1a}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:900px;width:100%;margin:0 auto}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:28px;text-align:left;transition:.3s}
+.card:hover{border-color:${c1}55;background:rgba(255,255,255,.07);transform:translateY(-5px)}
+.card-icon{font-size:2rem;margin-bottom:14px}
+.card h3{font-size:1rem;font-weight:700;margin-bottom:8px}
+.card p{color:rgba(226,232,240,.55);font-size:.875rem;line-height:1.6}
+footer{text-align:center;padding:40px 20px;border-top:1px solid rgba(255,255,255,.06);color:rgba(226,232,240,.35);font-size:.8rem;margin-top:auto}
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="hero">
+  <div class="badge">✨ Built with GenzTool.dev AI Web Builder</div>
+  <div class="icon">${icon}</div>
+  <h1>${type}</h1>
+  <p class="sub">A beautiful, modern ${type} built with AI. Customize this template by editing the code in the editor above.</p>
+  <div class="cta-row">
+    <button class="btn-p">Get Started →</button>
+    <button class="btn-s">Learn More</button>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="card-icon">⚡</div><h3>Fast & Modern</h3><p>Built with cutting-edge web technologies for blazing performance and beautiful design.</p></div>
+    <div class="card"><div class="card-icon">🎨</div><h3>Fully Customizable</h3><p>Every element is editable. Change colors, fonts, content, and layout to match your vision.</p></div>
+    <div class="card"><div class="card-icon">📱</div><h3>Responsive</h3><p>Looks perfect on every screen size — from mobile phones to 4K displays.</p></div>
+  </div>
+</div>
+<footer>© 2025 ${type} · Generated by GenzTool.dev AI Web Builder</footer>
+</body>
+</html>`;
+    }
+
+    /* ── DOMContentLoaded ────────────────────────────────────── */
+    window.addEventListener('DOMContentLoaded', () => {
+      renderProjectTypes();
+      addWelcomeMessage();
+
+      const saved = GenzUtils.loadFromStorage('webbuilder_project');
+      if (saved && saved.code) {
+        generatedCode = saved.code;
+        displayCode(saved.code);
+        updatePreview(saved.code);
+        if (saved.type) selectProjectType(saved.type);
+        addChatMessage('assistant', '📂 Loaded your saved ' + (saved.type || 'project') + '!');
+      } else {
+        const defaultCode = getPortfolioTemplate();
+        generatedCode = defaultCode;
+        displayCode(defaultCode);
+        updatePreview(defaultCode);
+      }
+
+      // Allow Enter+Shift for newlines, Enter alone submits
+      document.getElementById('userInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          generateCode();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

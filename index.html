@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GenzTool.dev - The Ultimate AI Creative Suite for Gen Z. AI Thumbnail Designer, Logo Designer, and Web Builder all in one place.">
+  <meta name="theme-color" content="#7c3aed">
+  <title>GenzTool - The Ultimate AI Creative Suite</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* ── Landing Page Extras ───────────────────────────────── */
+    .hero-visual {
+      position: relative;
+      z-index: 1;
+      margin-top: 60px;
+    }
+    .hero-cards-preview {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeInUp 0.7s ease 0.45s both;
+    }
+    .preview-card {
+      width: 180px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 20px 16px;
+      text-align: center;
+      backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+    }
+    .preview-card:hover {
+      transform: translateY(-8px) scale(1.04);
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(124,58,237,0.5);
+      box-shadow: 0 20px 40px rgba(124,58,237,0.25);
+    }
+    .preview-card .icon  { font-size: 2.5rem; margin-bottom: 10px; }
+    .preview-card .title { font-size: 0.875rem; font-weight: 700; margin-bottom: 4px; }
+    .preview-card .sub   { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+
+    /* animated gradient border on preview cards */
+    .preview-card.pc-1 { border-color: rgba(124,58,237,0.3); }
+    .preview-card.pc-2 { border-color: rgba(6,182,212,0.3);  }
+    .preview-card.pc-3 { border-color: rgba(236,72,153,0.3); }
+
+    /* gradient animated hero headline */
+    .animated-gradient {
+      background: linear-gradient(270deg, #7c3aed, #06b6d4, #ec4899, #7c3aed);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientShift 6s ease infinite;
+    }
+
+    /* full-width section wrapper */
+    .section-outer {
+      width: 100%;
+    }
+
+    /* Feature card accent colours */
+    .feature-card.fc-1:hover { box-shadow: 0 12px 40px rgba(124,58,237,0.2); }
+    .feature-card.fc-2:hover { box-shadow: 0 12px 40px rgba(6,182,212,0.2);  }
+    .feature-card.fc-3:hover { box-shadow: 0 12px 40px rgba(236,72,153,0.2); }
+
+    .feature-card .feature-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .feature-card.fc-1 .feature-badge { background: rgba(124,58,237,0.2); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+    .feature-card.fc-2 .feature-badge { background: rgba(6,182,212,0.15);  color: #22d3ee; border: 1px solid rgba(6,182,212,0.3);  }
+    .feature-card.fc-3 .feature-badge { background: rgba(236,72,153,0.15); color: #f472b6; border: 1px solid rgba(236,72,153,0.3); }
+
+    /* Stats section */
+    .stats-section {
+      background: rgba(255,255,255,0.02);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* How it Works connector dots */
+    .steps-section { position: relative; }
+    .steps-connector {
+      position: absolute;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 2px;
+      background: linear-gradient(90deg, #7c3aed, #06b6d4, #ec4899);
+      opacity: 0.25;
+      pointer-events: none;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+      padding: clamp(80px, 10vw, 140px) clamp(16px, 4vw, 48px);
+    }
+    .cta-section .section-title { font-size: clamp(1.75rem, 4vw, 3.25rem); margin-bottom: 20px; }
+    .cta-section p { color: rgba(255,255,255,0.65); font-size: 1.125rem; max-width: 560px; margin: 0 auto 40px; }
+
+    /* Navbar hamburger (mobile) */
+    .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 6px; }
+    .nav-toggle span { display: block; width: 22px; height: 2px; background: rgba(255,255,255,0.7); margin: 4px 0; border-radius: 1px; transition: all 0.3s; }
+
+    @media (max-width: 768px) {
+      .nav-toggle { display: block; }
+      .nav-links   { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     NAVIGATION
+══════════════════════════════════════════════════════════════ -->
+<nav class="navbar" id="navbar">
+  <span class="nav-logo">GenzTool.dev</span>
+  <ul class="nav-links">
+    <li><a href="#features">Tools</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="thumbnail-designer.html">Thumbnails</a></li>
+    <li><a href="logo-designer.html">Logos</a></li>
+    <li><a href="web-builder.html">Web Builder</a></li>
+  </ul>
+  <div class="nav-cta">
+    <a href="#features" class="btn-primary" style="font-size:0.875rem;padding:8px 20px;border-radius:8px;text-decoration:none;">
+      Get Started ✨
+    </a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HERO
+══════════════════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="orb-container">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="hero-content">
+    <div class="hero-badge animate-fade-in">
+      <span>🚀</span>
+      <span>100% Free · No signup required · Gen Z approved</span>
+    </div>
+
+    <h1 class="hero-title">
+      The Ultimate <span class="animated-gradient">AI Creative Suite</span><br>
+      for Gen&nbsp;Z
+    </h1>
+
+    <p class="hero-subtitle">
+      Design stunning thumbnails, craft iconic logos, and build beautiful websites — all powered by AI and completely free.
+    </p>
+
+    <div class="hero-cta">
+      <a href="#features" class="btn-primary" style="font-size:1rem;padding:14px 32px;">
+        Start Creating Free ✨
+      </a>
+      <a href="#how-it-works" class="btn-secondary" style="font-size:1rem;padding:14px 32px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
+        ▶ How It Works
+      </a>
+    </div>
+
+    <!-- Mini preview cards -->
+    <div class="hero-visual">
+      <div class="hero-cards-preview">
+        <div class="preview-card pc-1">
+          <div class="icon">🎨</div>
+          <div class="title">Thumbnail Designer</div>
+          <div class="sub">AI-powered canvas editor</div>
+        </div>
+        <div class="preview-card pc-2">
+          <div class="icon">✨</div>
+          <div class="title">Logo Designer</div>
+          <div class="sub">Brand identity in seconds</div>
+        </div>
+        <div class="preview-card pc-3">
+          <div class="icon">🚀</div>
+          <div class="title">Web Builder</div>
+          <div class="sub">Chat-to-code magic</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FEATURES
+══════════════════════════════════════════════════════════════ -->
+<div class="section-outer" id="features">
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label">AI-Powered Tools</span>
+      <h2 class="section-title">Powerful AI Tools at<br><span class="gradient-text">Your Fingertips</span></h2>
+      <p class="section-subtitle">Everything you need to create professional-quality content without any design experience.</p>
+    </div>
+
+    <div class="features-grid">
+
+      <!-- Thumbnail Designer -->
+      <div class="glass-card feature-card fc-1" id="tool-thumbnail">
+        <span class="feature-badge">🎨 Canvas Editor</span>
+        <span class="feature-icon" style="animation-delay:0s;">🎨</span>
+        <h3 class="feature-title">AI Thumbnail Designer</h3>
+        <p class="feature-description">
+          Create eye-catching YouTube thumbnails, social media banners, and more with our full Canva-like editor. Generate AI images, remove backgrounds, add text styles, and download in HD.
+        </p>
+        <ul style="color:rgba(255,255,255,0.55);font-size:0.85rem;list-style:none;margin-bottom:24px;display:flex;flex-direction:column;gap:6px;">
+          <li>✦ AI image generation</li>
+          <li>✦ Background removal</li>
+          <li>✦ 8 text style effects</li>
+          <li>✦ Layers &amp; undo/redo</li>
+        </ul>
+        <a href="thumbnail-designer.html" class="btn-primary w-full" style="justify-content:center;text-decoration:none;display:flex;">
+          Launch Tool →
+        </a>
+      </div>
+
+      <!-- Logo Designer -->
+      <div class="glass-card feature-card fc-2" id="tool-logo">
+        <span class="feature-badge">✨ Logo AI</span>
+        <span class="feature-icon" style="animation-delay:1.5s;">✨</span>
+        <h3 class="feature-title">AI Logo Designer</h3>
+        <p class="feature-description">
+          Design professional logos for your brand in seconds. Input your business name, pick a style, and let AI craft the perfect logo. Enhance prompts with AI and download in multiple formats.
+        </p>
+        <ul style="color:rgba(255,255,255,0.55);font-size:0.85rem;list-style:none;margin-bottom:24px;display:flex;flex-direction:column;gap:6px;">
+          <li>✦ AI prompt enhancer</li>
+          <li>✦ Multiple style presets</li>
+          <li>✦ PNG / SVG export</li>
+          <li>✦ Full canvas editor</li>
+        </ul>
+        <a href="logo-designer.html" class="btn-primary w-full" style="justify-content:center;text-decoration:none;display:flex;background:linear-gradient(135deg,#0891b2,#06b6d4);">
+          Launch Tool →
+        </a>
+      </div>
+
+      <!-- Web Builder -->
+      <div class="glass-card feature-card fc-3" id="tool-web">
+        <span class="feature-badge">🚀 Chat-to-Code</span>
+        <span class="feature-icon" style="animation-delay:3s;">🚀</span>
+        <h3 class="feature-title">AI Web Builder</h3>
+        <p class="feature-description">
+          Describe your website and watch it come to life in real-time. Chat with AI to generate complete, beautiful, self-contained HTML files. Live preview, code editing, and ZIP download included.
+        </p>
+        <ul style="color:rgba(255,255,255,0.55);font-size:0.85rem;list-style:none;margin-bottom:24px;display:flex;flex-direction:column;gap:6px;">
+          <li>✦ 15+ project templates</li>
+          <li>✦ Live preview</li>
+          <li>✦ Code editor</li>
+          <li>✦ Download as ZIP</li>
+        </ul>
+        <a href="web-builder.html" class="btn-primary w-full" style="justify-content:center;text-decoration:none;display:flex;background:linear-gradient(135deg,#be185d,#ec4899);">
+          Launch Tool →
+        </a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     STATS
+══════════════════════════════════════════════════════════════ -->
+<div class="section-outer stats-section">
+  <div class="section">
+    <div class="stats-grid">
+      <div class="stat-card glass-card" data-animate>
+        <span class="stat-number" data-target="10000">0</span>
+        <span class="stat-label">Active Users</span>
+      </div>
+      <div class="stat-card glass-card" data-animate>
+        <span class="stat-number" data-target="50000">0</span>
+        <span class="stat-label">Creations Made</span>
+      </div>
+      <div class="stat-card glass-card" data-animate>
+        <span class="stat-number" data-target="3" data-suffix=" Tools">0</span>
+        <span class="stat-label">AI Tools</span>
+      </div>
+      <div class="stat-card glass-card" data-animate>
+        <span class="stat-number" data-target="100" data-suffix="% Free">0</span>
+        <span class="stat-label">Always Free</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HOW IT WORKS
+══════════════════════════════════════════════════════════════ -->
+<div class="section-outer" id="how-it-works">
+  <div class="section steps-section">
+    <div class="section-header">
+      <span class="section-label">Simple Process</span>
+      <h2 class="section-title">How It <span class="gradient-text">Works</span></h2>
+      <p class="section-subtitle">From idea to finished creation in three simple steps.</p>
+    </div>
+
+    <div class="steps-grid">
+      <div class="glass-card step-card">
+        <div class="step-number">01</div>
+        <h3 class="step-title">Choose Your Tool</h3>
+        <p class="step-desc">Pick from our Thumbnail Designer, Logo Designer, or AI Web Builder based on what you want to create.</p>
+      </div>
+      <div class="glass-card step-card">
+        <div class="step-number">02</div>
+        <h3 class="step-title">Describe Your Vision</h3>
+        <p class="step-desc">Type a simple prompt describing what you want. Our AI understands natural language and brings your ideas to life.</p>
+      </div>
+      <div class="glass-card step-card">
+        <div class="step-number">03</div>
+        <h3 class="step-title">Download &amp; Share</h3>
+        <p class="step-desc">Edit, refine, and download your finished creation in high quality. PNG, SVG, JPEG, or ZIP — your choice.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CTA BANNER
+══════════════════════════════════════════════════════════════ -->
+<div class="section-outer" style="background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(6,182,212,0.05));">
+  <div class="cta-section">
+    <div class="orb-container">
+      <div class="orb" style="width:300px;height:300px;background:radial-gradient(circle,#7c3aed,transparent);top:-100px;left:10%;opacity:0.2;"></div>
+      <div class="orb" style="width:250px;height:250px;background:radial-gradient(circle,#ec4899,transparent);bottom:-80px;right:10%;opacity:0.2;"></div>
+    </div>
+    <h2 class="section-title" style="position:relative;z-index:2;">
+      Ready to Create Something <span class="animated-gradient">Amazing?</span>
+    </h2>
+    <p style="position:relative;z-index:2;">No sign-up. No credit card. No limits. Just pure creativity powered by AI.</p>
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;position:relative;z-index:2;">
+      <a href="thumbnail-designer.html" class="btn-primary" style="padding:14px 28px;text-decoration:none;">🎨 Design Thumbnail</a>
+      <a href="logo-designer.html"      class="btn-primary" style="padding:14px 28px;text-decoration:none;background:linear-gradient(135deg,#0891b2,#06b6d4);">✨ Design Logo</a>
+      <a href="web-builder.html"        class="btn-primary" style="padding:14px 28px;text-decoration:none;background:linear-gradient(135deg,#be185d,#ec4899);">🚀 Build Website</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-logo">GenzTool.dev</div>
+  <ul class="footer-links">
+    <li><a href="thumbnail-designer.html">Thumbnail Designer</a></li>
+    <li><a href="logo-designer.html">Logo Designer</a></li>
+    <li><a href="web-builder.html">Web Builder</a></li>
+  </ul>
+  <p class="footer-copy">© 2025 GenzTool.dev — The Ultimate AI Creative Suite for Gen Z</p>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════════════════ -->
+<script src="js/utils.js"></script>
+<script>
+/* ── Navbar scroll effect ─── */
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 40);
+}, { passive: true });
+
+/* ── Counter animation ─── */
+function animateCounter(el) {
+  const target = parseInt(el.dataset.target, 10);
+  const suffix = el.dataset.suffix || (target >= 1000 ? '+' : '');
+  const duration = 1800;
+  const step = 16;
+  const steps = duration / step;
+  let current = 0;
+  const increment = target / steps;
+
+  const timer = setInterval(() => {
+    current = Math.min(current + increment, target);
+    if (target >= 1000) {
+      el.textContent = (current >= 1000 ? (current / 1000).toFixed(current < 10000 ? 1 : 0) + 'K' : Math.round(current)) + suffix;
+    } else {
+      el.textContent = Math.round(current) + suffix;
+    }
+    if (current >= target) clearInterval(timer);
+  }, step);
+}
+
+/* ── Intersection Observer ─── */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const el = entry.target;
+
+    // Counter
+    if (el.hasAttribute('data-animate')) {
+      const num = el.querySelector('.stat-number');
+      if (num) animateCounter(num);
+    }
+
+    // Fade-in cards
+    if (el.classList.contains('glass-card') || el.classList.contains('step-card')) {
+      el.style.animation = 'fadeInUp 0.6s ease forwards';
+    }
+
+    observer.unobserve(el);
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('[data-animate], .glass-card, .step-card').forEach(el => {
+  el.style.opacity = '0';
+  observer.observe(el);
+});
+
+/* ── Smooth scroll for anchor links ─── */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href').slice(1);
+    const target = document.getElementById(id);
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+</script>
+</body>
+</html>
